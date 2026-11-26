@@ -41,6 +41,35 @@ For generation, the API provides two options:
 
 - generateBoard(difficulty, gen): Generates a Sudoku using a user-provided std::mt19937 generator, allowing control over the random seed and reproducibility.
 
+## Building
+
+You need **CMake ≥ 3.16** and a **C++20** compiler (GCC 10+, Clang 12+, or Visual Studio 2019/2022).
+
+### Linux / macOS
+
+bash:
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+cmake --build build -j
+
+
+### Windows (Visual Studio)
+
+powershell: 
+cmake -S . -B build -G "Visual Studio 17 2022"
+cmake --build build --config Release
+
+> On Windows you must pass --config Release. Otherwise it builds in Debug (no optimization) and the benchmarks will be wrong.
+
+### Running
+
+bash:
+ctest --test-dir build --output-on-failure        # tests (Linux/macOS)
+ctest --test-dir build -C Release                 # tests (Windows)
+
+./build/solver-benchmark                          # benchmarks (Linux/macOS)
+.\build\Release\solver-benchmark.exe              # benchmarks (Windows)
+
+
 ## Performance and Benchmarking
 
 Performance was a major part of this project.
