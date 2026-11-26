@@ -20,13 +20,13 @@ struct Solver
     {
         ++counter;
         auto emptyCell = findBestCell(board);
-        int index = emptyCell.first;
+        int index_ = emptyCell.first;
         mask mask_ = emptyCell.second;
-        if (index == -2)
+        if (index_ == -2)
         {
             return false;
         }
-        if (index == -1)
+        if (index_ == -1)
         {
             return true;
         }
@@ -35,12 +35,12 @@ struct Solver
         {
             lowestBit = mask_ & (-mask_);
             auto number = std::countr_zero(lowestBit);
-            board.modifyCell(index, number);
+            board.modifyCell(index_, number);
             if (solve(board))
             {
                 return true;
             }
-            board.clearCell(index);
+            board.clearCell(index_);
             mask_ = mask_ & (mask_ - 1);
         }
         return false;

@@ -13,7 +13,7 @@
 #include <string>
 #include <utility>
 
-#include "../src/Solver.cpp"
+#include "../src/Solver.hpp"
 
 #include <algorithm>
 #include <chrono>
@@ -36,7 +36,7 @@ template <class T>
 inline void escape(T *p)
 {
     asm volatile("" : : "g"(p) : "memory");
-}
+}  
 #endif
 
 constexpr std::uint32_t kSeed = 12345;

@@ -1,7 +1,7 @@
-
-#include "../src/Solver.cpp"
+#include "../src/Solver.hpp"
 
 #include <algorithm>
+#include <atomic>
 #include <chrono>
 #include <cmath>
 #include <cstdint>
@@ -13,19 +13,34 @@
 
 using clk = std::chrono::steady_clock;
 
+// ---------------------------------------------------------------------------
+// escape(): barrera de compilador para impedir que el optimizador elimine
+// trabajo dentro del bucle de medicion.
+//   - GCC / Clang: asm volatile vacio con clobber "memory" (sin codigo real).
+//   - MSVC: no acepta asm con operandos/clobbers. Se emula con una lectura
+//           volatile del puntero (fuerza a que "p" exista) + atomic_signal_fence
+//           (barrera de compilador sin instrucciones en hardware, equivalente
+//           al clobber "memory").
+// ---------------------------------------------------------------------------
 template <class T>
 inline void escape(T *p)
 {
+#if defined(_MSC_VER)
+    volatile std::uintptr_t vp = reinterpret_cast<std::uintptr_t>(p);
+    (void)vp;
+    std::atomic_signal_fence(std::memory_order_seq_cst);
+#else
     asm volatile("" : : "g"(p) : "memory");
+#endif
 }
 
-static volatile uint64_t g_sink = 0;
+static volatile std::uint64_t g_sink = 0;
 
 
 struct Puzzle
 {
     std::string name;
-    std::string cells; 
+    std::string cells;
 };
 
 static std::vector<Puzzle> loadPuzzles(const std::string &path)
@@ -130,14 +145,14 @@ static Statistics calculateStatistics(std::vector<double> v)
 
 struct Batch
 {
-    double ms;           
-    uint64_t totalNodes; 
-    int failures;        
+    double ms;
+    std::uint64_t totalNodes;
+    int failures;
 };
 
 static Batch runBatch(const Board &base, int inner)
 {
-    uint64_t totalNodes = 0, checksum = 0;
+    std::uint64_t totalNodes = 0, checksum = 0;
     int failures = 0;
 
     const auto t0 = clk::now();
@@ -164,7 +179,7 @@ static double measureOverheadMsPerIter(const Board &base)
     double best = 1e30;
     for (int rep = 0; rep < 7; ++rep)
     {
-        uint64_t checksum = 0;
+        std::uint64_t checksum = 0;
         const auto t0 = clk::now();
         for (int i = 0; i < N; ++i)
         {
@@ -219,10 +234,20 @@ int main(int argc, char **argv)
 
 #ifdef __VERSION__
     std::printf("Compilador: %s\n", __VERSION__);
+#elif defined(_MSC_VER)
+    std::printf("Compilador: MSVC %d.%d\n", _MSC_VER / 100, _MSC_VER % 100);
 #endif
-#ifndef __OPTIMIZE__
-    std::printf("AVISO: compilado SIN optimizacion (falta -O2/-O3). Los resultados no valen.\n");
+
+    // Aviso de build sin optimizar. GCC/Clang: __OPTIMIZE__. MSVC: lo pone
+    // el CMake via SUDOKU_OPTIMIZED cuando la configuracion es Release.
+#if defined(__OPTIMIZE__) || defined(SUDOKU_OPTIMIZED)
+    // ok
+#elif defined(NDEBUG)
+    // MSVC Release sin la define del CMake (por ejemplo, build manual): asumimos /O2.
+#else
+    std::printf("AVISO: compilado SIN optimizacion (falta /O2 o -O2/-O3). Los resultados no valen.\n");
 #endif
+
     std::printf("Fichero: %s  (%zu puzzles)  muestras=%d  objetivo=%.0f ms/muestra\n\n",
                 (path == "-" ? "(integrado)" : path.c_str()), puzzles.size(), reps, targetMs);
 
@@ -230,7 +255,7 @@ int main(int argc, char **argv)
                 "id", "nodos", "mediana us", "min us", "P90 us", "cv %", "ns/nodo", "estado");
 
     double sumMedianMs = 0.0;
-    uint64_t sumNodes = 0;
+    std::uint64_t sumNodes = 0;
     bool allGood = true;
 
     const double overheadMsPerIter = measureOverheadMsPerIter(Board(puzzles[0].cells));
@@ -242,7 +267,7 @@ int main(int argc, char **argv)
         Board once = base;
         Solver s;
         const bool ok = s.solve(once);
-        const uint64_t nodes = s.counter;
+        const std::uint64_t nodes = s.counter;
         const bool correct = ok && verifySolution(p.cells, once);
 
         const int inner = calibrateInner(base, targetMs);
@@ -257,7 +282,7 @@ int main(int argc, char **argv)
         {
             const Batch b = runBatch(base, inner);
             failures += b.failures;
-            stable &= (b.totalNodes == nodes * static_cast<uint64_t>(inner));
+            stable &= (b.totalNodes == nodes * static_cast<std::uint64_t>(inner));
             perSolveMs.push_back(std::max(0.0, b.ms / inner - overheadMsPerIter));
         }
 
